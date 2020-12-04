@@ -158,7 +158,11 @@ extern void xPortStartFirstTask( void );
 		/* Check the least significant two bits of mtvec are 00 - indicating
 		single vector mode. */
 		__asm volatile( "csrr %0, mtvec" : "=r"( mtvec ) );
+#ifdef configRISCV_INTR_VECTOR_MODE
+		configASSERT( ( mtvec & 0x03UL ) == 1 );
+#else
 		configASSERT( ( mtvec & 0x03UL ) == 0 );
+#endif
 
 		/* Check alignment of the interrupt stack - which is the same as the
 		stack that was being used by main() prior to the scheduler being

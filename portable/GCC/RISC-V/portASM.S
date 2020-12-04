@@ -103,6 +103,7 @@ at the top of this file. */
 .global xPortStartFirstTask
 .global freertos_risc_v_trap_handler
 .global pxPortInitialiseStack
+.global freeRTOSVecTable
 .extern pxCurrentTCB
 .extern ulPortTrapHandler
 .extern vTaskSwitchContext
@@ -297,14 +298,19 @@ processed_source:
 .align 8
 .func
 xPortStartFirstTask:
-
-#if( portasmHAS_SIFIVE_CLINT != 0 )
-	/* If there is a clint then interrupts can branch directly to the FreeRTOS
-	trap handler.  Otherwise the interrupt controller will need to be configured
-	outside of this file. */
-	la t0, freertos_risc_v_trap_handler
+#if( portasmUSE_VECTOR_MODE != 0)
+	la t0, freeRTOSVecTable
+    addi t0,t0,1
 	csrw mtvec, t0
-#endif /* portasmHAS_CLILNT */
+#else 
+    #if( portasmHAS_SIFIVE_CLINT != 0 )
+	    /* If there is a clint then interrupts can branch directly to the FreeRTOS
+	    trap handler.  Otherwise the interrupt controller will need to be configured
+	    outside of this file. */
+	    la t0, freertos_risc_v_trap_handler
+	    csrw mtvec, t0
+    #endif /* portasmHAS_CLILNT */
+#endif //( portasmUSE_VECTOR_MODE != 0)
 
 	load_x  sp, pxCurrentTCB			/* Load pxCurrentTCB. */
 	load_x  sp, 0( sp )				 	/* Read sp from first TCB member. */
@@ -440,4 +446,17 @@ chip_specific_stack_frame:				/* First add any chip specific registers to the st
 	store_x a1, 0(a0)					/* mret value (pxCode parameter) onto the stack. */
 	ret
 	.endfunc
-/*-----------------------------------------------------------*/
+#
+# Consumes 128 bytes to rereoute all interrupts to freertos_trap_handler
+# only used when the chip interrupt is in vector mode
+#
+.align 8
+.option norvc
+.option norelax
+
+freeRTOSVecTable:
+        .rept 32
+        j freertos_risc_v_trap_handler  // emulate catch all
+        .endr
+ .size freeRTOSVecTable, .-freeRTOSVecTable
+
